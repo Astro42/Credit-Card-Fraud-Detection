@@ -1,0 +1,151 @@
+---
+title: "RanganathanSrinidheesh_Model1"
+author: "Srinidheesh_Ranganathan"
+date: "10/31/2021"
+output: word_document
+---
+#Installing and loading libraries
+#for data manipulation
+install.packages('dplyr')
+library(dplyr)
+#for data manipulation
+install.packages('stringr')
+library(stringr) 
+#for ROSE sampling
+install.packages('ROSE')
+library(ROSE)
+#for decision tree model
+install.packages('rpart')
+library(rpart)
+#for random forest model
+install.packages('Rborist')
+library(Rborist)
+#for data visualization
+install.packages('ggplot2')
+library(ggplot2) 
+#for correlations
+install.packages('corrplot')
+library(corrplot) 
+#for tsne plotting
+install.packages('Rtsne')
+library(Rtsne) 
+#for smote implementation
+install.packages('DMwR')
+library(DMwR) 
+#for sampling
+install.packages('caret')
+library(caret) 
+#for train/test split
+install.packages('caTools')
+library(caTools) 
+#for XG boost
+install.packages('xgboost')
+library(xgboost)
+#Loading the dataset 
+library(readr)
+ds <- read_csv("C:/Users/rsrin/OneDrive/Desktop/Group2_dataset.csv")
+View(ds)
+
+#head of the dataset
+head(ds)
+#structure of the dataset
+str(ds)
+#summary of the dataset
+summary(ds)
+#checking for null values
+colSums(is.na(ds))
+# percentage of class imbalance
+prop.table(table(ds$Class))
+
+# boxplot of class
+fig(12, 8)
+c_t <- theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+ggplot(data = ds, aes(x = factor(Class),y = prop.table(stat(count)), fill = factor(Class),
+                          label = scales::percent(prop.table(stat(count))))) +
+    geom_bar(position = "dodge") + 
+    geom_text(stat = 'count',
+              position = position_dodge(.9), 
+              vjust = -0.5, 
+              size = 3) + 
+    scale_x_discrete(labels = c("not fraudulent", "fraudulent"))+
+    scale_y_continuous(labels = scales::percent)+
+    labs(x = 'Class', y = 'Percentage') +
+    ggtitle("Distribution of class labels") +
+    c_t
+#data visualizations
+# variable 'time' distribution
+ds %>%
+  ggplot(aes(x = Time, fill = factor(Class))) + geom_histogram(bins = 100)+
+  labs(x = 'Time in seconds since first transaction', y = 'No. of transactions') +
+  ggtitle('Distribution of time of transaction by class') +
+  facet_grid(Class ~ ., scales = 'free_y') + c_t
+#variable 'transaction amount' distribution
+ggplot(ds, aes(x = factor(Class), y = Amount)) + geom_boxplot() + 
+labs(x = 'Class', y = 'Amount') +
+ggtitle("Distribution of transaction amount by class") + c_t
+#correlation matrix
+correlations <- cor(ds[,-1],method="pearson")
+corrplot(correlations, number.cex = .9, method = "circle", type = "full", tl.cex=0.8,tl.col = "black")
+#Preparing the data
+#Removing variable 'time'
+ds <- ds[,-1]
+head(ds)
+#Changing 'class' variable to factor
+ds$Class <- as.factor(ds$Class)
+levels(ds$Class) <- c("Not_Fraudulent", "Fraudulent")
+#Scale numeric variables
+ds[,-30] <- scale(ds[,-30])
+head(ds)
+
+```{r}
+#SRINIDHEESH DATA SET
+#Decision tree
+#Slicing the data
+#Taking the First 95,000 observation.
+
+x = ds[1:95000,]
+set.seed(5237) # set seed given while splitting the data
+
+#defining Splitting ratio at 80/20
+data_split <- sample.split(x$Class, SplitRatio = 0.80)
+#Spliting the data into taining and testing data
+train <-  subset(x, data_split == TRUE)
+test <- subset(x, data_split == FALSE)
+#building the DECISION TREE model for the first 95,000 observations
+set.seed(4268) # set seed given while building the model
+orig_fit = rpart(Class~.,data = train)
+## Evaluating model performance on test data
+pred_orig = predict(orig_fit, newdata = test, method = "class")
+roc.curve(test$Class, pred_orig[,2], plotit = TRUE)
+
+
+#defining Splitting ratio at 70/30
+data_split2 <- sample.split(x$Class, SplitRatio = 0.70)
+#Spliting the data into taining and testing data
+train2 <-  subset(x, data_split2 == TRUE)
+test2 <- subset(x, data_split2 == FALSE)
+#building the DECISION TREE model for the first 95,000 observations
+set.seed(4268) # set seed given while building the model
+orig_fit2 = rpart(Class~.,data = train)
+## Evaluating model performance on test data
+pred_orig2 = predict(orig_fit2, newdata = test2, method = "class")
+roc.curve(test2$Class, pred_orig2[,2], plotit = TRUE)
+
+
+#defining Splitting ratio at 65/35
+data_split3 <- sample.split(x$Class, SplitRatio = 0.65)
+#Spliting the data into taining and testing data
+train3 <-  subset(x, data_split3 == TRUE)
+test3 <- subset(x, data_split3 == FALSE)
+#building the DECISION TREE model for the first 95,000 observations
+set.seed(4268) # set seed given while building the model
+orig_fit3 = rpart(Class~.,data = train)
+# Evaluating model performance on test data
+pred_orig3 = predict(orig_fit3, newdata = test3, method = "class")
+roc.curve(test3$Class, pred_orig3[,2], plotit = TRUE)
+
+```
+
+
+

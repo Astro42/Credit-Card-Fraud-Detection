@@ -1,0 +1,235 @@
+---
+title: "RanganathanSrinidheesh_Model2"
+author: "Srinidheesh_Ranganathan"
+date: "10/31/2021"
+output: word_document
+---
+#Installing and loading libraries
+#for data manipulation
+install.packages('dplyr')
+library(dplyr)
+#for data manipulation
+install.packages('stringr')
+library(stringr) 
+#for ROSE sampling
+install.packages('ROSE')
+library(ROSE)
+#for decision tree model
+install.packages('rpart')
+library(rpart)
+#for random forest model
+install.packages('Rborist')
+library(Rborist)
+#for data visualization
+install.packages('ggplot2')
+library(ggplot2) 
+#for correlations
+install.packages('corrplot')
+library(corrplot) 
+#for tsne plotting
+install.packages('Rtsne')
+library(Rtsne) 
+#for smote implementation
+install.packages('DMwR')
+library(DMwR) 
+#for sampling
+install.packages('caret')
+library(caret) 
+#for train/test split
+install.packages('caTools')
+library(caTools) 
+#Loading the dataset 
+library(readr)
+ds <- read_csv("C:/Users/rsrin/OneDrive/Desktop/Group2_dataset.csv")
+View(ds)
+#head of the dataset
+head(ds)
+#structure of the dataset
+str(ds)
+#summary of the dataset
+summary(ds)
+#checking for null values
+colSums(is.na(ds))
+# percentage of class imbalance
+prop.table(table(ds$Class))
+# boxplot of class
+fig(12, 8)
+c_t <- theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+ggplot(data = ds, aes(x = factor(Class), 
+                          y = prop.table(stat(count)), fill = factor(Class),
+                          label = scales::percent(prop.table(stat(count))))) +
+    geom_bar(position = "dodge") + 
+    geom_text(stat = 'count',
+              position = position_dodge(.9), 
+              vjust = -0.5, 
+              size = 3) + 
+    scale_x_discrete(labels = c("not fraudulent", "fraudulent"))+
+    scale_y_continuous(labels = scales::percent)+
+    labs(x = 'Class', y = 'Percentage') +
+    ggtitle("Distribution of class labels") +
+    c_t
+
+#data visualizations
+#variable 'time' distribution
+ds %>%
+  ggplot(aes(x = Time, fill = factor(Class))) + geom_histogram(bins = 100)+
+  labs(x = 'Time in seconds since first transaction', y = 'No. of transactions') +
+  ggtitle('Distribution of time of transaction by class') +
+  facet_grid(Class ~ ., scales = 'free_y') + c_t
+  
+# variable 'transaction amount' distribution
+ggplot(ds, aes(x = factor(Class), y = Amount)) + geom_boxplot() + 
+labs(x = 'Class', y = 'Amount') +
+ggtitle("Distribution of transaction amount by class") + c_t
+
+#correlation matrix
+correlations <- cor(ds[,-1],method="pearson")
+corrplot(correlations, number.cex = .9, method = "circle", type = "full", tl.cex=0.8,tl.col = "black")
+
+#Data preparation
+#Removing variable 'time'
+ds <- ds[,-1]
+head(ds)
+#Changing 'class' variable to factor
+ds$Class <- as.factor(ds$Class)
+levels(ds$Class) <- c("Not_Fraudulent", "Fraudulent")
+ds[,-30] <- scale(ds[,-30])
+head(ds)
+
+#XG Boost on the first 95000 observations
+a <- ds %>% dplyr::slice(1:95000) 
+head(a)
+#####################################################################################################
+```{r}
+#70:30
+set.seed(4096)
+data_split1 <- sample.split(a$Class, SplitRatio = 0.7)
+train1 <-  subset(a, data_split1 == TRUE)
+test1 <- subset(a, data_split1 == FALSE)
+train <- train1
+test <- test1
+# initiating Down sampling for the majority class to make their frequencies closer to the rarest class
+set.seed(4096)
+down <- downSample(x = train[, -ncol(train)],y = train$Class)
+table(down$Class)
+#initiating Up sampling for minority class to increase the corresponding frequencies
+set.seed(4096)
+up <- upSample(x = train[, -ncol(train)],y = train$Class)
+table(up$Class)
+xgb_train  <- xgb.DMatrix(data.matrix(train[,-c(30)]),label = as.numeric(train$Class)-1)
+xgb_test  <- xgb.DMatrix(data.matrix(test[,-c(30)]), label = as.numeric(test$Class)-1)
+parameter1 <- list(eta = 0.1, max_depth = 15,objective = "binary:logistic")
+set.seed(4096)
+xgb_orig_fit <- xgboost(params=parameter1, data=xgb_train,nrounds = 400, verbose = 0)
+xgb_pred_orig <- predict(xgb_orig_fit, xgb_test, type="response")
+roc.curve(test$Class, xgb_pred_orig, plotit = TRUE)
+#Evaluating the up sample model
+set.seed(4096)
+xgb_train_up  <- xgb.DMatrix(data.matrix(up[,-c(30)]),label = as.numeric(up$Class)-1)
+xgb_up_fit <- xgboost(params=parameter1, data=xgb_train_up,nrounds = 100, verbose = 0)
+xgb_pred_up <- predict(xgb_up_fit, xgb_test, type="response")
+roc.curve(test$Class, xgb_pred_up, plotit = TRUE)
+#Evaluating the down sample model
+set.seed(4096)
+xgb_train_down  <- xgb.DMatrix(data.matrix(down[,-c(30)]), label = as.numeric(down$Class)-1)
+xgb_down_fit <- xgboost(params=parameter1, data=xgb_train_down,nrounds = 100, verbose = 0)
+xgb_pred_down <- predict(xgb_down_fit, xgb_test, type="response")
+roc.curve(test$Class, xgb_pred_down, plotit = TRUE)
+```
+#####################################################################################################
+```{r}
+#80:20
+set.seed(4096)
+data_split2 <- sample.split(a$Class, SplitRatio = 0.8)
+train2 <-  subset(a, data_split2 == TRUE)
+test2 <- subset(a, data_split2 == FALSE)
+train <- train2
+test <- test2
+# initiating Down sampling for the majority class to make their frequencies closer to the rarest class
+set.seed(4096)
+down <- downSample(x = train[, -ncol(train)], y = train$Class)
+table(down$Class)
+#initiating Up sampling for minority class to increase the corresponding frequencies
+set.seed(4096)
+up <- upSample(x = train[, -ncol(train)],y = train$Class)
+table(up$Class)
+xgb_train  <- xgb.DMatrix(data.matrix(train[,-c(30)]),label = as.numeric(train$Class)-1)
+xgb_test  <- xgb.DMatrix(data.matrix(test[,-c(30)]),label = as.numeric(test$Class)-1)
+parameter2 <- list(eta = 0.1, max_depth = 15, objective = "binary:logistic")
+set.seed(4096)
+xgb_orig_fit <- xgboost(params=parameter2, data=xgb_train, nrounds = 400, verbose = 0)
+xgb_pred_orig <- predict(xgb_orig_fit, xgb_test, type="response")
+roc.curve(test$Class, xgb_pred_orig, plotit = TRUE)
+#Evaluating the up sample model
+set.seed(4096)
+xgb_train_up  <- xgb.DMatrix(data.matrix(up[,-c(30)]),label = as.numeric(up$Class)-1)
+xgb_up_fit <- xgboost(params=parameter2,data=xgb_train_up,nrounds = 100, verbose = 0)
+xgb_pred_up <- predict(xgb_up_fit,xgb_test,type="response")
+roc.curve(test$Class, xgb_pred_up, plotit = TRUE)
+#Evaluating the down sample model
+set.seed(4096)
+xgb_train_down  <- xgb.DMatrix(data.matrix(down[,-c(30)]), label = as.numeric(down$Class)-1)
+xgb_down_fit <- xgboost(params=parameter2,data=xgb_train_down, nrounds = 100,verbose = 0)
+xgb_pred_down <- predict(xgb_down_fit,xgb_test,type="response")
+roc.curve(test$Class, xgb_pred_down, plotit = TRUE)
+```
+#####################################################################################################
+```{r}
+##65:35
+set.seed(4096)
+data_split3 <- sample.split(a$Class, SplitRatio = 0.65)
+train3 <-  subset(a, data_split3 == TRUE)
+test3 <- subset(a, data_split3 == FALSE)
+train <- train3
+test <- test3
+# initiating Down sampling for the majority class to make their frequencies closer to the rarest class
+set.seed(4096)
+down <- downSample(x = train[, -ncol(train)],y = train$Class)
+table(down$Class)
+#initiating Up sampling for minority class to increase the corresponding frequencies
+set.seed(4096)
+up <- upSample(x = train[, -ncol(train)],y = train$Class)
+table(up$Class)
+xgb_train  <- xgb.DMatrix(data.matrix(train[,-c(30)]),label = as.numeric(train$Class)-1)
+xgb_test  <- xgb.DMatrix(data.matrix(test[,-c(30)]),label = as.numeric(test$Class)-1)
+parameter3 <- list(eta = 0.1, max_depth = 15,objective = "binary:logistic")
+set.seed(4096)
+xgb_orig_fit <- xgboost(params=parameter3,data=xgb_train, nrounds = 400,verbose = 0)
+xgb_pred_orig <- predict(xgb_orig_fit, xgb_test, type="response")
+roc.curve(test$Class, xgb_pred_orig, plotit = TRUE)
+#Evaluating the up sample model
+set.seed(4096)
+xgb_train_up  <- xgb.DMatrix(data.matrix(up[,-c(30)]),label = as.numeric(up$Class)-1)
+xgb_up_fit <- xgboost(params=parameter3, data=xgb_train_up, nrounds = 100,verbose = 0)
+xgb_pred_up <- predict(xgb_up_fit, xgb_test,type="response")
+roc.curve(test$Class, xgb_pred_up, plotit = TRUE)
+#Evaluating the down sample model
+set.seed(4096)
+xgb_train_down  <- xgb.DMatrix(data.matrix(down[,-c(30)]),label = as.numeric(down$Class)-1)
+xgb_down_fit <- xgboost(params=parameter3, data=xgb_train_down,nrounds = 100,verbose = 0)
+xgb_pred_down <- predict(xgb_down_fit, xgb_test, type="response")
+roc.curve(test$Class, xgb_pred_down, plotit = TRUE)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
